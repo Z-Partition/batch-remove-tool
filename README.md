@@ -1,5 +1,4 @@
 # batch-remove-tool
----
 #### Bash script to make removing a large amount of files easier, but also safer from potential catastrophes. 
 ---
 Have yet to master the command line?    
@@ -10,7 +9,7 @@ Feel like ```rm -i``` is overkill?
 
 **This tool may be for you!**
 
----
+--
 The goal here is to make a tool that is both easy and safe to use for file removal jobs.  
 
 The user first enters the name of a directory, followed by a file name.  
