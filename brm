@@ -1,0 +1,289 @@
+#!/bin/bash
+
+# =======================================================================
+# Batch Remove Tool: <brm>
+# =======================================================================
+
+# This tool was designed to make removing a large amount of files or
+# 	directories simpler and quicker, while doing so safely. It was half
+# 	made for fun, and half made to actually be useful from time to time.
+#
+# The tool is built around the 'find -iname' command with its output directed
+# 	into a text file ~/.local/bin/to_delete.txt. It may make sense to
+# 	change this path requirement for use on other machines. I may make
+# 	this path a variable so that where the file is stored, albeit
+# 	temporarily, is easily changeable by the user.
+#
+# The 'grep -v' command is used in the function 'keep_files' with its
+# 	output directed into a secondary file ~/.local/bin/edited_delete.txt
+#	The -v option for grep inverts the match, selecting all non-matching
+#	lines.
+#
+# Text is displayed in list form to the user with the 'while read -r'
+#	method seen in multiple locations throught this script.
+#
+# The 'tput' method of styling is used on file path lists, specifically
+#	the 'bold' option for aesthetic purposes.
+#
+# This being my first shell script exceeding one or two lines, I found
+#	the following sources to be invaluable:
+#	1) http://ryanstutorials.net/bash-scripting-tutorial/
+#	2) https://www.cyberciti.biz/faq/howto-use-grep-command-in-linux-unix/
+#	3) http://askubuntu.com/questions/1705/how-can-i-create-a-select-menu-in-a-shell-script
+#	4) http://stackoverflow.com/questions/10929453/read-a-file-line-by-line-assigning-the-value-to-a-variable/10929511#10929511
+
+
+# ========================================================================
+# Functions that will be used
+# ========================================================================
+
+# Asks for and saves user input as variables for search, searches, saves
+# 	search output to ~/.local/bin/to_delete.txt and then calls display_list.
+get_vars () {
+	read -p "$(echo -e 'Enter the path to search:\b\n>> ')" varPath
+
+	echo
+	read -p "$(echo -e 'Enter the file name to search for:\b\n>> ')" varFile
+
+	# Searches for the specified path and file name and
+	# writes each path into to_delete.txt
+	find $varPath -iname "$varFile" > ~/.local/bin/to_delete.txt
+	
+	display_list
+}
+
+
+# Displays the current list of files to be deleted
+display_list () {
+	clear	
+	echo "Files to delete:"
+	echo
+
+	# This displays each file line of to_delete.txt
+	tput bold
+	while read -r line
+	do
+		echo $line
+	done <~/.local/bin/to_delete.txt
+	tput sgr0
+	echo
+}
+
+
+# Deletes only files listed in to_delete.txt
+# (cannot delete directories)
+delete_files () {
+	read -p "$(echo -e 'Are you sure you?\n\b>> ')" varDeleteFiles
+
+	varDFdone='n'
+	while [ $varDFdone = 'n' ]
+	do
+		if [ $varDeleteFiles = 'y' ]
+		then
+			echo
+			echo 'Executing command...'
+			while read -r line
+			do
+				sudo rm $line
+			done <~/.local/bin/to_delete.txt
+			clear
+			echo "Files removed successfully"
+			varDFdone='y'
+			return 1
+
+		elif [ $varDeleteFiles = 'n' ]
+		then
+			varDFdone='y'			
+			return 0
+
+		else
+			echo 
+			echo "Error: Please answer 'y' or 'n'"
+			echo
+			read -p "$(echo -e 'Are you sure you?\n\b>> ')" varDeleteFiles
+			varDFdone='n'
+		fi
+	done
+}
+
+
+# Deletes directories as well as files listed in to_delete.txt
+delete_all () {
+	read -p "$(echo -e 'Are you sure you?\n\b>> ')" varDeleteAll
+
+	varDAdone='n'
+	while [ $varDAdone = 'n' ]
+	do
+		if [ $varDeleteAll = 'y' ]
+		then
+			echo
+			echo 'Executing command...'
+			while read -r line
+			do
+				sudo rm -r $line
+			done <~/.local/bin/to_delete.txt
+			clear
+			echo "Files removed successfully"
+			varDAdone='y'
+			return 1
+
+		elif [ $varDeleteAll = 'n' ]
+		then
+			varDAdone='y'			
+			return 0
+
+		else
+			echo 
+			echo "Error: Please answer 'y' or 'n'"
+			echo
+			read -p "$(echo -e 'Are you sure you?\n\b>> ')" varDeleteAll
+			varDAdone='n'
+		fi
+	done
+}
+
+
+# Allows user to select files they do not want to delete
+# 	with 'grep -v' directed to 'edited_delete.txt' and then
+# 	overwriting 'to_delete.txt' with 'edited_delete.txt'
+#
+# This is repeated until user enters 'done'
+# So no you can't select files named 'done'...
+#
+# Maybe I'll work on a different way to handle this.
+#
+# The 'grep -v' command returns all non-matching lines,
+# 	so the user types in the search parameters for files
+# 	they want to keep when prompted, and then using 'grep -v'
+#	creates a new file without the lines containing the
+#	specified characters. 'keep_files' then uses 'mv' to change
+#	the old list 'to_delete.txt' to the new list 'edited_delete.txt'
+#	and also removes the 'edited_delete.txt' file.
+#
+keep_files () {	
+	read -p "$(echo -e 'Enter name of file or directory you wish to keep,\b\nOr type "done" to return to the menu:\b\n>> ')" varRemoveFile
+	
+	until [ $varRemoveFile = 'done' ]
+	do
+		grep -v $varRemoveFile ~/.local/bin/to_delete.txt > ~/.local/bin/edited_delete.txt
+			
+		clear
+		echo "Files to delete:"
+		echo
+		
+		tput bold
+		while read -r line
+		do
+			echo $line
+		done <~/.local/bin/edited_delete.txt
+		tput sgr0
+		mv ~/.local/bin/edited_delete.txt ~/.local/bin/to_delete.txt			
+
+		echo
+		read -p "$(echo -e 'Enter name of file or directory you wish to keep,\b\nOr type "done" to return to the menu:\b\n>> ')" varRemoveFile
+		echo
+	done			
+}			
+
+
+# This function provides the user a menu style options to choose from, and is the
+# 	the main loop the user will interact with.
+# 
+# The options consist of:
+# 	1) Choosing files from list to_delete.txt to keep.
+#	   	(calls 'keep_files' function)
+#		Stays within 'while' loop after completion so that delete options can be performed
+#		on new list of files to remove.
+# 	2) Removing only files. Uses 'rm' without options so directories cannot be deleted.
+#	   	(calls 'delete_files' function)
+#		Breaks out of 'select' and 'while' loops and returns user to command line.
+#	3) Removeing files and directories. Uses 'rm -r' so directories can be deleted.
+# 	   	(calls 'delete_all' function)
+# 		Breaks out of 'select' and 'while' loops and returns user to command line.
+#	4) Canceling the process, breaking 'while' and 'select' loops, then returning user to
+#		the command line.
+#
+# I nested the 'select' loop (which handles the menu style options) within a 'while' loop
+# 	because I was not getting the desired user interface after returning from the 'keep_files'
+#	function when only using the 'select' loop. It may not be the best way to achieve my
+#	desired result, but it works.
+make_choice () {
+	PS3="$(echo -e '\n\bChoose an option:\n\b>> ')"
+	options=("Choose files to keep" "Remove only files" "Remove files and directories" "Change search parameters" "Cancel")
+
+	display_list
+	
+	varFinished=0
+	while [ $varFinished -eq 0 ]
+	do
+		select opt in "${options[@]}"	
+		do
+			case $opt in
+				"Choose files to keep")
+					display_list
+					keep_files
+					clear
+					display_list
+					varFinished=0
+					break	
+				    ;;
+				"Remove only files")
+					display_list
+					delete_files					
+					varFinished=$?					
+					break
+				    ;;
+				"Remove files and directories")
+					display_list
+					delete_all
+					varFinished=$?
+					break
+				    ;;
+				"Change search parameters")
+				    echo
+					get_vars
+					varFinished=0
+					break
+				    ;;
+				"Cancel")
+				    clear
+					echo 'Canceled...'
+					varFinished=1
+					break
+				    ;;
+				*) echo
+					echo Error: invalid option;;
+			esac
+		done
+	done
+}
+
+
+# ========================================================================
+# Code starts below
+# ========================================================================
+
+# Asks for and saves user input as variables for search
+read -p "$(echo -e 'Enter the path to search:\b\n>> ')" varPath
+
+echo
+read -p "$(echo -e 'Enter the file name to search for:\b\n>> ')" varFile
+
+
+# Searches for the specified path and file name and
+# writes each path into to_delete.txt
+find $varPath -iname "$varFile" > ~/.local/bin/to_delete.txt
+
+
+# Begins main loop
+make_choice
+
+
+# Cleans up left over file
+rm ~/.local/bin/to_delete.txt
+
+
+
+# Zach Geer
+# January 12, 2017
+
